@@ -1,7 +1,7 @@
-import os
 import csv
+import os
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 from loguru import logger
@@ -13,79 +13,78 @@ from .models import Beta, Chad
 
 class MatchingEngine:
     """
-    The matching engine takes in a campaign and matches the copy to incoming prompts.
+    The matching engine takes in a prompt (beta) and matches it to the most similar campaign (chad)
+    from a list of campaigns. A campaign is only considered a match if the cosine similarity between
+    the prompt and the campaign copy exceeds the campaign's threshold.
     """
 
-    def __init__(self, chad: Optional[Chad] = None) -> None:
-        self.chad = chad
+    def __init__(self) -> None:
+        self.chads: List[Chad] = []
+        self.chad_embeddings = {}  # mapping from chad.id to its embedding
         self.embedder = Embedder()
-        if chad is not None:
-            self.chad_embedding = self._embed_chad()
-            self.has_campaign = True
-        else:
-            self.chad_embedding = None
-            self.has_campaign = False
         self.impressions = 0
 
         # CSV File Setup
         self.csv_file = "matches.csv"
         if os.path.exists(self.csv_file):
             os.remove(self.csv_file)
-        if not os.path.exists(self.csv_file):
-            with open(self.csv_file, mode="w", newline="") as file:
-                writer = csv.writer(file)
-                writer.writerow(["impressions", "timestamp"])
+        with open(self.csv_file, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["impressions", "chad_id", "similarity", "timestamp"])
 
-    def _embed_chad(self):
-        if self.chad:
-            self.chad_embedding = self.embedder.embed([self.chad.copy])[0]
-            self.has_campaign = True
-        logger.info("embed chad")
+    def _embed_chad(self, chad: Chad):
+        """Embed a single campaign copy and return the embedding."""
+        embedding = self.embedder.embed([chad.copy])[0]
+        return embedding
 
     async def put(self, chad: Chad):
         """
-        When a new campaign is created, update the chad in the Matching Engine.
+        Add a new campaign to the matching engine.
+        Validate the campaign, compute its embedding, and store it.
         """
+        # Validate campaign parameters
         if not (0 <= chad.threshold <= 1):
             return None
         if not (0 <= chad.tier <= 2):
             return None
         if not (0 <= chad.budget <= 1000000):
             return None
-        self.chad = chad
-        self._embed_chad()
 
-    async def get(self, id: str) -> Chad | None:
+        self.chads.append(chad)
+        self.chad_embeddings[chad.id] = self._embed_chad(chad)
+
+    async def get(self, id: str) -> Optional[Chad]:
         """
         Get a campaign by ID.
         """
-        if self.chad:
-            return self.chad if self.chad.id == id else None
-        else:
-            return None
+        for chad in self.chads:
+            if chad.id == id:
+                return chad
+        return None
 
-    async def delete(self, id: str) -> str | None:
-        if self.chad:
-            self.chad = None
-            self.chad_embedding = None
-            self.has_campaign = False
-            return id
-        else:
-            return None
+    async def delete(self, id: str) -> Optional[str]:
+        """
+        Delete a campaign by ID.
+        """
+        for i, chad in enumerate(self.chads):
+            if chad.id == id:
+                self.chads.pop(i)
+                self.chad_embeddings.pop(chad.id, None)
+                return id
+        return None
 
     async def match(self, beta: Beta):
         """
-        Matching algorithm:
-
-        - Embed a beta prompt.
-        - If there's no campaign, return the beta object with no match.
-        - Otherwise, if the cosine similarity exceeds the campaign threshold,
-          inject it as a system_prompt.
-        - If below threshold, no match is made, but fulfill the request anyway.
+        Matching algorithm for multiple campaigns:
+        
+        - Embed the beta prompt.
+        - Iterate over each campaign and compute cosine similarity.
+        - Select the campaign with the highest similarity that meets its threshold.
+        - If a match is found, increment impressions, log the match, and write to CSV.
+        - Otherwise, return the beta with no campaign match.
         """
-        # Ensure that campaign related actions only occur if a campaign exists.
-        if not self.has_campaign or self.chad is None or self.chad_embedding is None:
-            logger.info("No campaign available. Skipping matching logic.")
+        if not self.chads:
+            logger.info("No campaigns available. Skipping matching logic.")
             return {
                 "beta": beta,
                 "chad": None,
@@ -93,21 +92,29 @@ class MatchingEngine:
 
         beta_embedding = self.embedder.embed([beta.prompt])[0]
 
-        similarity = np.dot(beta_embedding, self.chad_embedding) / (
-            np.linalg.norm(beta_embedding) * np.linalg.norm(self.chad_embedding)
-        )
+        best_match = None
+        best_similarity = -1  # initialize with a very low similarity
 
-        if similarity >= self.chad.threshold:
+        for chad in self.chads:
+            chad_embedding = self.chad_embeddings[chad.id]
+            similarity = np.dot(beta_embedding, chad_embedding) / (
+                np.linalg.norm(beta_embedding) * np.linalg.norm(chad_embedding)
+            )
+            logger.info(f"Chad {chad.id} similarity: {similarity}")
+            # Consider this campaign if it meets the threshold and has a higher similarity than previous ones.
+            if similarity >= chad.threshold and similarity > best_similarity:
+                best_similarity = similarity
+                best_match = chad
+
+        if best_match:
             self.impressions += 1
-            self.similarity = similarity
-            logger.info(f"impressions={self.impressions}, similarity={self.similarity}")
-
-            # Write match to CSV
-            self.write_match_to_csv()
-
+            logger.info(
+                f"Match found: Chad {best_match.id} with similarity {best_similarity}, impressions={self.impressions}"
+            )
+            self.write_match_to_csv(best_match.id, best_similarity)
             return {
                 "beta": beta,
-                "chad": self.chad,
+                "chad": best_match,
             }
         else:
             return {
@@ -115,10 +122,10 @@ class MatchingEngine:
                 "chad": None,
             }
 
-    def write_match_to_csv(self):
-        """Write a match to CSV with an incrementing index and timestamp."""
+    def write_match_to_csv(self, chad_id: str, similarity: float):
+        """Write a match to CSV with an incrementing index, campaign id, similarity, and timestamp."""
         timestamp = datetime.now().isoformat()
-
         with open(self.csv_file, mode="a", newline="") as file:
             writer = csv.writer(file)
-            writer.writerow([self.impressions, timestamp])  # Write match entry
+            writer.writerow([self.impressions, chad_id, similarity, timestamp])
+
