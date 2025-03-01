@@ -13,4 +13,5 @@ dependencies = [
     "cohere>=5.14.0",
     "numpy>=2.2.3",
     "gradio>=5.20.0",
+    "matplotlib>=3.10.1",
 ]

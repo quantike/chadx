@@ -1,3 +1,6 @@
+import os
+import csv
+from datetime import datetime
 from typing import Optional
 
 import numpy as np
@@ -23,6 +26,15 @@ class MatchingEngine:
             self.chad_embedding = None
             self.has_campaign = False
         self.impressions = 0
+
+        # CSV File Setup
+        self.csv_file = "matches.csv"
+        if os.path.exists(self.csv_file):
+            os.remove(self.csv_file)
+        if not os.path.exists(self.csv_file):
+            with open(self.csv_file, mode="w", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(["impressions", "timestamp"])
 
     def _embed_chad(self):
         if self.chad:
@@ -89,6 +101,10 @@ class MatchingEngine:
             self.impressions += 1
             self.similarity = similarity
             logger.info(f"impressions={self.impressions}, similarity={self.similarity}")
+
+            # Write match to CSV
+            self.write_match_to_csv()
+
             return {
                 "beta": beta,
                 "chad": self.chad,
@@ -98,3 +114,11 @@ class MatchingEngine:
                 "beta": beta,
                 "chad": None,
             }
+
+    def write_match_to_csv(self):
+        """Write a match to CSV with an incrementing index and timestamp."""
+        timestamp = datetime.now().isoformat()
+
+        with open(self.csv_file, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([self.impressions, timestamp])  # Write match entry
