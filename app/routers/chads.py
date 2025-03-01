@@ -15,8 +15,8 @@ router = APIRouter(
 @router.post("/campaign")
 async def post_campaign(chad: Chad):
     # Update CHADX
-    await CHADX.update(chad)
-    logger.info(f"update chad: {chad.id}")
+    await CHADX.put(chad)
+    logger.info(f"put chad: {chad.id}")
 
     return chad.id
 
@@ -26,3 +26,8 @@ async def get_campaign(id: str):
 
     return chad_or_none if chad_or_none else chad_or_none
 
+@router.delete("/campaign/{id}")
+async def delete_campaign(id: str):
+    id_or_none = await CHADX.delete(id)
+
+    return id_or_none if id_or_none else id_or_none

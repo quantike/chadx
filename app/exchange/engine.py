@@ -17,19 +17,31 @@ class MatchingEngine:
         self.chad = chad
         self.embedder = Embedder()
         if chad is not None:
-            self.chad_embedding = self.embedder.embed([chad.copy])[0]
+            self.chad_embedding = self._embed_chad()
             self.has_campaign = True
         else:
             self.chad_embedding = None
             self.has_campaign = False
+        self.impressions = 0
 
-    async def update(self, chad: Chad):
+    def _embed_chad(self):
+        if self.chad:
+            self.chad_embedding = self.embedder.embed([self.chad.copy])[0]
+            self.has_campaign = True
+        logger.info("embed chad")
+
+    async def put(self, chad: Chad):
         """
         When a new campaign is created, update the chad in the Matching Engine.
         """
+        if not (0 <= chad.threshold <= 1):
+            return None
+        if not (0 <= chad.tier <= 2):
+            return None
+        if not (0 <= chad.budget <= 1000000):
+            return None
         self.chad = chad
-        self.chad_embedding = self.embedder.embed([chad.copy])[0]
-        self.has_campaign = True
+        self._embed_chad()
 
     async def get(self, id: str) -> Chad | None:
         """
@@ -37,6 +49,15 @@ class MatchingEngine:
         """
         if self.chad:
             return self.chad if self.chad.id == id else None
+        else:
+            return None
+
+    async def delete(self, id: str) -> str | None:
+        if self.chad:
+            self.chad = None
+            self.chad_embedding = None
+            self.has_campaign = False
+            return id
         else:
             return None
 
@@ -63,9 +84,11 @@ class MatchingEngine:
         similarity = np.dot(beta_embedding, self.chad_embedding) / (
             np.linalg.norm(beta_embedding) * np.linalg.norm(self.chad_embedding)
         )
-        logger.info(f"Cosine similarity: {similarity}")
 
         if similarity >= self.chad.threshold:
+            self.impressions += 1
+            self.similarity = similarity
+            logger.info(f"impressions={self.impressions}, similarity={self.similarity}")
             return {
                 "beta": beta,
                 "chad": self.chad,
