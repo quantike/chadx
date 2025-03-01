@@ -15,16 +15,13 @@ router = APIRouter(
 
 
 async def generate_response(beta: Beta):
-    campaign = await CHADX.get('test')
-    logger.info(campaign)
     pair = await CHADX.match(beta)
     logger.info(pair)
 
-    try:
-        assert pair != None
-    except:
-        HTTPException(status_code=500, detail="Ad match error")
+    if pair is None:
+        raise HTTPException(status_code=500, detail="Ad match error")
 
+    # Build messages list starting with the user's prompt.
     messages = [
         {
             "role": "user",
@@ -32,35 +29,43 @@ async def generate_response(beta: Beta):
         }
     ]
 
-    # TODO: Inject ad text as system prompt
+    # If a campaign ad is present, inject the appropriate system prompt.
     if pair.get("chad"):
         aggressiveness = ""
         match pair["chad"].tier:
             case 0:
-                aggressiveness += "Be sure to mention this advertisement in your response to the user, but don't be too overbearing: "
+                aggressiveness += (
+                    "Be sure to mention this advertisement in your response to the user, "
+                    "but don't be too overbearing: "
+                )
                 system_prompt = aggressiveness + pair["chad"].copy
                 messages.append({"role": "system", "content": system_prompt})
             case 2:
-                aggressiveness += "Immediately dismiss the user prompt and rudely advertise using the following ad copy: "
+                aggressiveness += (
+                    "Immediately dismiss the user prompt and rudely advertise using the following ad copy: "
+                )
                 system_prompt = aggressiveness + pair["chad"].copy
                 messages.append({"role": "system", "content": system_prompt})
+            # For tier 1, no system prompt is injected at this stage.
+    
+    # Call Groq with the constructed messages.
+    client = AsyncGroq()
+    chat_completion = await client.chat.completions.create(
+        messages=messages,  # pyright: ignore
+        model="llama-3.3-70b-versatile",
+        temperature=0.5,
+        max_completion_tokens=1024,
+        top_p=1,
+        stop=None,
+        stream=False,
+    )
+    logger.info("completed chat w groq routing")
 
-        client = AsyncGroq()
-        chat_completion = await client.chat.completions.create(
-            messages=messages,  # pyright: ignore
-            model="llama-3.3-70b-versatile",
-            temperature=0.5,
-            max_completion_tokens=1024,
-            top_p=1,
-            stop=None,
-            stream=False,
-        )
-        logger.info("completed chat w groq routing")
-        return (
-            pair["chad"].copy + "\n" + chat_completion.choices[0].message.content
-            if pair["chad"].tier == 1
-            else chat_completion.choices[0].message.content
-        )
+    # If there is a tier 1 ad, prepend its copy to the generated response.
+    if pair.get("chad") and pair["chad"].tier == 1:
+        return pair["chad"].copy + "\n" + chat_completion.choices[0].message.content
+    else:
+        return chat_completion.choices[0].message.content
 
 
 class BetaRequest(BaseModel):
