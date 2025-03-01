@@ -4,7 +4,8 @@ from fastapi import APIRouter
 from loguru import logger
 from pydantic import UUID4, BaseModel
 
-from app.dependencies import CHADX, Chad
+from app.dependencies import CHADX
+from app.exchange.models import Chad
 
 router = APIRouter(
     prefix="/chads",
