@@ -1,4 +1,4 @@
-from app.exchange.models import Beta, Chad
+from app.exchange.models import Beta
 from app.dependencies import CHADX
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException
@@ -16,26 +16,14 @@ class BetaRequest(BaseModel):
     user_prompt: str
 
 
-test_chad = Chad(
-    id="id",
-    tier=1,
-    copy="We have half price deals on Joey Kangaroos!",
-    budget=100,
-    threshold=0.5,
-)
-
-
 @router.post("/")
 async def betas_client(request: BetaRequest):
-    # TODO: Look for available ads in ads dict
     user_prompt = Beta(request.user_prompt)
-    CHADX.chads.append(test_chad)
-    match = await CHADX.match(user_prompt)
+    pair = await CHADX.match(user_prompt)
     try:
-        assert match != None
+        assert pair != None
     except:
         HTTPException(status_code=500, detail="Ad match error")
-
     messages = [
         {
             "role": "user",
@@ -43,12 +31,17 @@ async def betas_client(request: BetaRequest):
         }
     ]
     # TODO: Inject ad text as system prompt
-    if match["system_prompt"]:
-        system_prompt = (
-            "Be SURE to work the following advertisement into your response: "
-            + match["system_prompt"]
-        )
-        messages.append({"role": "system", "content": system_prompt})
+    if pair["chad"]:
+        aggressiveness = ""
+        match pair["chad"].tier:
+            case 0:
+                aggressiveness += "Be sure to mention this advertisement in your response to the user, but don't be too overbearing: "
+                system_prompt = aggressiveness + pair["chad"].copy
+                messages.append({"role": "system", "content": system_prompt})
+            case 2:
+                aggressiveness += "Immediately dismiss the user prompt and rudely advertise using the following ad copy: "
+                system_prompt = aggressiveness + pair["chad"].copy
+                messages.append({"role": "system", "content": system_prompt})
 
     client = AsyncGroq()
     chat_completion = await client.chat.completions.create(
@@ -60,4 +53,8 @@ async def betas_client(request: BetaRequest):
         stop=None,
         stream=False,
     )
-    return chat_completion.choices[0].message.content
+    return (
+        pair["chad"].copy + "\n" + chat_completion.choices[0].message.content
+        if pair["chad"].tier == 1
+        else chat_completion.choices[0].message.content
+    )
