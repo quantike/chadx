@@ -1,7 +1,9 @@
 import uuid
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import UUID4, BaseModel
+
+from app.dependencies import CHADX, Chad
 
 router = APIRouter(
     prefix="/chadvertisers",
@@ -17,10 +19,20 @@ async def post_login():
 
 class CampaignPayload(BaseModel):
     id: str
-    prompt: str
+    chad: Chad
+
+
+class CampaignResponse(BaseModel):
+    campaign_id: UUID4
+
 
 
 # TODO: Check that the ID exists somehere
 @router.post("/campaign")
-async def post_campaign(payload: CampaignPayload):
-    return payload.prompt
+async def post_campaign(payload: CampaignPayload) -> CampaignResponse:
+
+    # Append a new advertisement
+    CHADX.chads.append(payload.chad)
+
+    return CampaignResponse(campaign_id=uuid.uuid4())
+

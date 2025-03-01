@@ -19,14 +19,9 @@ class MatchingEngine:
 
     def __init__(self) -> None:
         self.chads: List[Chad] = []
-        self.betas: List[Beta] = []
 
-    def match(self) -> Dict[str, str | None] | None:
-        # Ensure there is at least one element in each list
-        if not self.betas:
-            return None
-
-        user_prompt = self.betas.pop(0).prompt
+    async def match(self, beta: Beta) -> Dict[str, str | None] | None:
+        user_prompt = beta.prompt
         system_prompt = self.chads.pop(0).prompt if self.chads else None
         
         return {

@@ -6,7 +6,6 @@ from .routers import chadvertisers
 
 app = FastAPI()
 
-
 app.include_router(chadvertisers.router)
 app.include_router(
     admin.router,
