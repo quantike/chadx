@@ -7,5 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.115.10",
     "loguru>=0.7.3",
+    "groq>=0.18.0",
     "pydantic>=2.10.6",
+    "python-dotenv>=1.0.1",
 ]
