@@ -22,15 +22,14 @@ class MatchingEngine:
         self.chads: List[Chad] = []
         self.chad_embeddings = {}  # mapping from chad.id to its embedding
         self.embedder = Embedder()
-        self.impressions = 0
 
-        # CSV File Setup
+        # CSV File Setup: now including a column for whether the campaign was chosen as a match.
         self.csv_file = "matches.csv"
         if os.path.exists(self.csv_file):
             os.remove(self.csv_file)
         with open(self.csv_file, mode="w", newline="") as file:
             writer = csv.writer(file)
-            writer.writerow(["impressions", "chad_id", "similarity", "timestamp"])
+            writer.writerow(["impressions", "chad_id", "similarity", "matched", "timestamp"])
 
     def _embed_chad(self, chad: Chad):
         """Embed a single campaign copy and return the embedding."""
@@ -49,6 +48,10 @@ class MatchingEngine:
             return None
         if not (0 <= chad.budget <= 1000000):
             return None
+
+        # Ensure the Chad has an impressions attribute.
+        if not hasattr(chad, "impressions"):
+            chad.impressions = 0
 
         self.chads.append(chad)
         self.chad_embeddings[chad.id] = self._embed_chad(chad)
@@ -80,8 +83,8 @@ class MatchingEngine:
         - Embed the beta prompt.
         - Iterate over each campaign and compute cosine similarity.
         - Select the campaign with the highest similarity that meets its threshold.
-        - If a match is found, increment impressions, log the match, and write to CSV.
-        - Otherwise, return the beta with no campaign match.
+        - If a match is found, increment its impressions.
+        - Log each campaign's similarity evaluation and whether it was chosen.
         """
         if not self.chads:
             logger.info("No campaigns available. Skipping matching logic.")
@@ -94,6 +97,7 @@ class MatchingEngine:
 
         best_match = None
         best_similarity = -1  # initialize with a very low similarity
+        evaluations = []  # list to store evaluation results: (chad, similarity)
 
         for chad in self.chads:
             chad_embedding = self.chad_embeddings[chad.id]
@@ -101,17 +105,24 @@ class MatchingEngine:
                 np.linalg.norm(beta_embedding) * np.linalg.norm(chad_embedding)
             )
             logger.info(f"Chad {chad.id} similarity: {similarity}")
-            # Consider this campaign if it meets the threshold and has a higher similarity than previous ones.
+            evaluations.append((chad, similarity))
             if similarity >= chad.threshold and similarity > best_similarity:
                 best_similarity = similarity
                 best_match = chad
 
+        # Only increment impressions for the chosen campaign if there's a match.
         if best_match:
-            self.impressions += 1
+            best_match.impressions += 1
+
+        # Log every campaign's evaluation to CSV.
+        for chad, similarity in evaluations:
+            matched = (chad == best_match)
+            self.write_match_to_csv(chad, similarity, matched)
+
+        if best_match:
             logger.info(
-                f"Match found: Chad {best_match.id} with similarity {best_similarity}, impressions={self.impressions}"
+                f"Match found: Chad {best_match.id} with similarity {best_similarity}, impressions={best_match.impressions}"
             )
-            self.write_match_to_csv(best_match.id, best_similarity)
             return {
                 "beta": beta,
                 "chad": best_match,
@@ -122,10 +133,13 @@ class MatchingEngine:
                 "chad": None,
             }
 
-    def write_match_to_csv(self, chad_id: str, similarity: float):
-        """Write a match to CSV with an incrementing index, campaign id, similarity, and timestamp."""
+    def write_match_to_csv(self, chad: Chad, similarity: float, matched: bool):
+        """
+        Write an evaluation entry to CSV with the campaign's current impression count, campaign id,
+        similarity, match flag, and the current timestamp.
+        """
         timestamp = datetime.now().isoformat()
         with open(self.csv_file, mode="a", newline="") as file:
             writer = csv.writer(file)
-            writer.writerow([self.impressions, chad_id, similarity, timestamp])
+            writer.writerow([chad.impressions, chad.id, similarity, matched, timestamp])
 
