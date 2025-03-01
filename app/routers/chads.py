@@ -1,4 +1,6 @@
 
+from typing import List
+
 from fastapi import APIRouter
 from loguru import logger
 
@@ -19,6 +21,15 @@ async def post_campaign(chad: Chad):
     logger.info(f"put chad: {chad.id}")
 
     return chad.id
+
+@router.post("/campaign/batch")
+async def post_campaign_batch(chads: List[Chad]):
+    # Update CHADX
+    for chad in chads:
+        await CHADX.put(chad)
+        logger.info(f"put chad: {chad.id}")
+
+    return [chad.id for chad in chads]
 
 @router.get("/campaign/{id}")
 async def get_campaign(id: str):

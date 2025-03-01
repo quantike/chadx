@@ -11,5 +11,6 @@ class Chad:
     id: str
     copy: str
     budget: int
-    tier: int
-    threshold: float
+    tier: int = 0
+    threshold: float = 0.2
+    impressions: int = 0
