@@ -1,9 +1,10 @@
-from app.exchange.models import Beta
-from app.dependencies import CHADX
-from pydantic import BaseModel
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from groq import AsyncGroq
-from dotenv import load_dotenv
+from pydantic import BaseModel
+
+from app.dependencies import CHADX
+from app.exchange.models import Beta
 
 load_dotenv()
 
