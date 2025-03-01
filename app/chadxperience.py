@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-import pandas as pd
 import requests
 import json
 import gradio as gr
@@ -27,7 +25,7 @@ def send_chad_request(id, tier, copy, budget, threshold):
 def send_generate_request(id):
     url = "http://127.0.0.1:8000/betas/generate"
     headers = {"Content-Type": "application/json"}
-    payload = {"id": id, "n_betas": 20}
+    payload = {"id": id, "n_betas": 5}
 
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     return response.text
@@ -36,44 +34,7 @@ def send_generate_request(id):
 def run_sim_and_plot(id):
     """Runs the Beta simulation and updates the graph incrementally."""
     sim_result = send_generate_request(id)  # Run simulation
-    return update_live_graph()  # Return both API response and updated graph
-
-
-def update_live_graph():
-    """Reads matches.csv and updates the graph incrementally."""
-    global timestamps, impressions
-
-    try:
-        df = pd.read_csv("matches.csv")
-        df["timestamp"] = pd.to_datetime(df["timestamp"])  # Convert to datetime
-
-        # Append only new data points
-        if len(df) > len(timestamps):
-            new_data = df.iloc[len(timestamps) :]  # Get new rows
-            timestamps.extend(new_data["timestamp"].tolist())
-            impressions.extend(new_data["impressions"].tolist())
-
-        # Plot setup
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.plot(
-            timestamps,
-            impressions,
-            marker="o",
-            linestyle="-",
-            color="b",
-            label="Impressions",
-        )
-
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Impressions")
-        ax.set_title("Live Impressions Over Time")
-        ax.legend()
-        ax.grid(True)
-        plt.xticks(rotation=45)
-
-        return fig  # Gradio handles rendering automatically
-    except Exception as e:
-        return f"Error reading CSV: {e}"
+    return sim_result
 
 
 with gr.Blocks() as chadxperience:
@@ -89,10 +50,7 @@ with gr.Blocks() as chadxperience:
 
     # Beta Sim
     run_beta_sim = gr.Button("Run Sim on Beta Bots")
-
-    # Live Graph
-    gr.Markdown("## Live Match Impressions Graph")
-    graph = gr.Plot()
+    sim_output = gr.Textbox(label="Sim Results")
 
     submit_button.click(
         send_chad_request,
@@ -103,7 +61,7 @@ with gr.Blocks() as chadxperience:
     run_beta_sim.click(
         run_sim_and_plot,
         inputs=id_input,
-        outputs=graph,
+        outputs=sim_output,
     )
 
 chadxperience.launch()
