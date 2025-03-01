@@ -2,6 +2,8 @@
 from dataclasses import dataclass
 from typing import Dict, List
 
+from loguru import logger
+
 
 @dataclass
 class Beta:
@@ -11,11 +13,14 @@ class Beta:
 @dataclass
 class Chad:
     id: str
-    tier: int
     prompt: str
+    usage: int
 
 
 class MatchingEngine:
+    """
+    The matching engine takes in a campaign and serves it based on a relevance threshold.
+    """
 
     def __init__(self) -> None:
         self.chads: List[Chad] = []
@@ -23,6 +28,7 @@ class MatchingEngine:
     async def match(self, beta: Beta) -> Dict[str, str | None] | None:
         user_prompt = beta.prompt
         system_prompt = self.chads.pop(0).prompt if self.chads else None
+        logger.info("match")
         
         return {
             # This will never be None
