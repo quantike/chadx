@@ -31,6 +31,15 @@ class MatchingEngine:
         self.chad_embedding = self.embedder.embed([chad.copy])[0]
         self.has_campaign = True
 
+    async def get(self, id: str) -> Chad | None:
+        """
+        Get a campaign by ID.
+        """
+        if self.chad:
+            return self.chad if self.chad.id == id else None
+        else:
+            return None
+
     async def match(self, beta: Beta):
         """
         Matching algorithm:
