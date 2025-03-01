@@ -36,3 +36,6 @@ class MatchingEngine:
             # This can be None
             "system_prompt": system_prompt,
         }
+
+
+CHADX = MatchingEngine()
