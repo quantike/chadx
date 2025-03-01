@@ -2,11 +2,12 @@ from fastapi import FastAPI
 
 # from .dependencies import get_query_token, get_token_header
 from .internal import admin
-from .routers import chadvertisers
+from .routers import chadvertisers, betas
 
 app = FastAPI()
 
 app.include_router(chadvertisers.router)
+app.include_router(betas.router)
 app.include_router(
     admin.router,
     prefix="/admin",
