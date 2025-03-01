@@ -6,4 +6,6 @@ router = APIRouter(
     responses={404: {"description":  "not found"}}
 )
 
-fake_chads_db = {}
+
+@router.post("/campaign")
+async def post_campaign(req: ):
