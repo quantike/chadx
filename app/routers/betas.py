@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from groq import AsyncGroq
+from loguru import logger
 from pydantic import BaseModel
 
 from app.dependencies import CHADX
@@ -14,19 +15,25 @@ router = APIRouter(
 
 
 async def generate_response(beta: Beta):
+    campaign = await CHADX.get('test')
+    logger.info(campaign)
     pair = await CHADX.match(beta)
+    logger.info(pair)
+
     try:
         assert pair != None
     except:
         HTTPException(status_code=500, detail="Ad match error")
+
     messages = [
         {
             "role": "user",
             "content": beta.prompt,
         }
     ]
+
     # TODO: Inject ad text as system prompt
-    if pair["chad"]:
+    if pair.get("chad"):
         aggressiveness = ""
         match pair["chad"].tier:
             case 0:
@@ -48,6 +55,7 @@ async def generate_response(beta: Beta):
             stop=None,
             stream=False,
         )
+        logger.info("completed chat w groq routing")
         return (
             pair["chad"].copy + "\n" + chat_completion.choices[0].message.content
             if pair["chad"].tier == 1
