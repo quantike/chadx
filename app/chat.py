@@ -9,7 +9,7 @@ def message_with_ads(message, history):
     """
     url = "http://localhost:8000/betas/"  # Update the host/port if needed.
     payload = {"user_prompt": message}
-    
+
     try:
         response = requests.post(url, json=payload)
         response.raise_for_status()  # Raise an exception for HTTP errors.
@@ -17,8 +17,9 @@ def message_with_ads(message, history):
     except Exception as e:
         print(f"Error calling FastAPI endpoint: {e}")
         generated_response = "Error generating response."
-    
+
     return generated_response
+
 
 iface = gr.ChatInterface(
     fn=message_with_ads,
@@ -28,7 +29,7 @@ iface = gr.ChatInterface(
     examples=[
         "How can I win my Hackathon?",
         "What is an agent?",
-        "What the hell is attention?"
+        "What the hell is attention?",
     ],
 )
 
