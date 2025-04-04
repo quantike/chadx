@@ -1,5 +1,3 @@
-import json
-import uuid
 from dotenv import load_dotenv
 
 from fastapi import APIRouter, HTTPException
@@ -104,45 +102,3 @@ async def betas_client(request: BetaRequest):
     beta = Beta(request.user_prompt)
     response = await generate_response(beta)
     return response
-
-
-class GenerateRequest(BaseModel):
-    id: str
-    n_betas: int
-
-
-@router.post("/generate")
-async def generate_betas(request: GenerateRequest):
-    """Create synthetic user prompts based on the target ad copy"""
-    chad_or_none = await CHADX.get(request.id)
-    if not chad_or_none:
-        return HTTPException(status_code=404, detail="No chad campaign found")
-
-    client = AsyncGroq()
-    messages = [
-        {
-            "role": "user",
-            "content": "Generate a user question that is vaguely related to the following ad copy: "
-            + chad_or_none.copy,
-        }
-    ]
-
-    completions = []
-    for _ in range(request.n_betas):
-        chat_completion = await client.chat.completions.create(
-            messages=messages,  # pyright: ignore
-            model="llama-3.3-70b-versatile",
-            temperature=1,
-            max_completion_tokens=1024,
-            top_p=1,
-            stop=None,
-            stream=False,
-        )
-        completions.append(chat_completion.choices[0].message.content)
-
-    responses = []
-    for user_prompt in completions:
-        beta = Beta(user_prompt)
-        response = await generate_response(beta)
-        responses.append(response)
-    return responses

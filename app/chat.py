@@ -31,6 +31,13 @@ iface = gr.ChatInterface(
         "What is an agent?",
         "What the hell is attention?",
     ],
+    flagging_mode="manual",
+    flagging_options=[
+        "Like",
+        "Dislike",
+        "This Ad was useful",
+        "This Ad was not useful",
+    ],
 )
 
 iface.launch()
